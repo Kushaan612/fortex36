@@ -1,277 +1,446 @@
 'use client'
 
+import { motion, useScroll, useTransform } from 'framer-motion'
+import { useRef } from 'react'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
-import { Zap, Users, Brain, Sparkles, ArrowRight, Star, CheckCircle } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { Navbar } from '@/components/layout/navbar'
 import { Footer } from '@/components/layout/footer'
-import { useGraphStats } from '@/lib/hooks/use-matches'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { StaggerContainer, StaggerItem, StaggerReveal } from '@/components/animations/stagger-reveal'
+import { AnimatedCounter } from '@/components/animations/animated-counter'
+import {
+    ArrowRight,
+    Sparkles,
+    BookOpen,
+    Users,
+    Zap,
+    Target,
+    MessageCircle,
+    Star,
+    Check,
+    ChevronRight,
+} from 'lucide-react'
+
+// Stats data
+const stats = [
+    { label: 'Active Students', value: 500, suffix: '+' },
+    { label: 'Skills Matched', value: 1200, suffix: '+' },
+    { label: 'Sessions Completed', value: 850, suffix: '+' },
+    { label: 'Match Accuracy', value: 94, suffix: '%' },
+]
+
+// How it works steps
+const steps = [
+    {
+        icon: BookOpen,
+        title: 'Add Your Skills',
+        description: 'Tell us what you can teach and what you want to learn',
+    },
+    {
+        icon: Target,
+        title: 'Get AI Matches',
+        description: 'Our GraphRAG finds your perfect peer mentors',
+    },
+    {
+        icon: MessageCircle,
+        title: 'Connect & Learn',
+        description: 'Schedule sessions and start your learning journey',
+    },
+]
+
+// Features
+const features = [
+    'AI-powered matching with GraphRAG',
+    'Peer-to-peer learning network',
+    'Campus-verified students only',
+    'Real-time collaboration tools',
+    'Progress tracking & badges',
+    'Trust-based rating system',
+]
 
 export default function LandingPage() {
-    const { data: stats } = useGraphStats()
-    // const stats: any = null // Placeholder
+    const heroRef = useRef<HTMLDivElement>(null)
+    const { scrollYProgress } = useScroll({
+        target: heroRef,
+        offset: ['start start', 'end start'],
+    })
+
+    const heroOpacity = useTransform(scrollYProgress, [0, 1], [1, 0])
+    const heroScale = useTransform(scrollYProgress, [0, 1], [1, 0.8])
+    const heroY = useTransform(scrollYProgress, [0, 1], [0, 100])
 
     return (
-        <div className="min-h-screen bg-background">
+        <div className="min-h-screen bg-background grain">
             <Navbar />
 
-            {/* Hero Section */}
-            <section className="relative pt-32 pb-20 overflow-hidden">
-                {/* Background Effects */}
+            {/* ===== HERO SECTION - RADICAL TYPOGRAPHY-FIRST ===== */}
+            <section
+                ref={heroRef}
+                className="relative min-h-screen flex items-center justify-center overflow-hidden pt-16"
+            >
+                {/* Background Elements */}
                 <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                    <div className="absolute top-20 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-3xl" />
-                    <div className="absolute bottom-20 right-1/4 w-80 h-80 bg-success/15 rounded-full blur-3xl" />
+                    {/* Grid Pattern */}
+                    <div className="absolute inset-0 bg-grid opacity-30" />
+
+                    {/* Gradient Orbs */}
+                    <motion.div
+                        className="absolute top-1/4 left-1/4 w-[600px] h-[600px] rounded-full blur-[120px]"
+                        style={{
+                            background: 'radial-gradient(circle, rgba(0, 138, 255, 0.15) 0%, transparent 70%)',
+                        }}
+                        animate={{
+                            scale: [1, 1.2, 1],
+                            opacity: [0.3, 0.5, 0.3],
+                        }}
+                        transition={{
+                            duration: 8,
+                            repeat: Infinity,
+                            ease: 'easeInOut',
+                        }}
+                    />
+                    <motion.div
+                        className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] rounded-full blur-[100px]"
+                        style={{
+                            background: 'radial-gradient(circle, rgba(61, 214, 140, 0.12) 0%, transparent 70%)',
+                        }}
+                        animate={{
+                            scale: [1.2, 1, 1.2],
+                            opacity: [0.3, 0.5, 0.3],
+                        }}
+                        transition={{
+                            duration: 10,
+                            repeat: Infinity,
+                            ease: 'easeInOut',
+                        }}
+                    />
+
+                    {/* Floating Elements */}
+                    <motion.div
+                        className="absolute top-[20%] right-[15%] w-4 h-4 rounded-full bg-primary/30"
+                        animate={{ y: [0, -20, 0] }}
+                        transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+                    />
+                    <motion.div
+                        className="absolute top-[60%] left-[10%] w-3 h-3 rounded-full bg-success/40"
+                        animate={{ y: [0, 15, 0] }}
+                        transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+                    />
+                    <motion.div
+                        className="absolute bottom-[30%] right-[20%] w-2 h-2 rounded-full bg-warning/50"
+                        animate={{ y: [0, -10, 0] }}
+                        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+                    />
                 </div>
 
-                <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="grid lg:grid-cols-2 gap-12 items-center">
-                        {/* Left: Content */}
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.5 }}
-                        >
-                            {/* Badge */}
-                            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-medium mb-6">
-                                <Sparkles className="w-4 h-4" />
-                                AI-Powered Peer Learning
-                            </div>
-
-                            {/* Headline */}
-                            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground leading-tight mb-6">
-                                Find Your{' '}
-                                <span className="text-gradient">Perfect Mentor</span>{' '}
-                                On Campus
-                            </h1>
-
-                            {/* Subheadline */}
-                            <p className="text-lg text-muted-foreground max-w-lg mb-8">
-                                Connect with peer experts using our AI-powered knowledge graph.
-                                Learn any skill through personalized 1-on-1 sessions with students
-                                who&apos;ve mastered what you want to learn.
-                            </p>
-
-                            {/* CTAs */}
-                            <div className="flex flex-col sm:flex-row gap-4 mb-12">
-                                <Link href="/signup">
-                                    <Button size="lg" className="w-full sm:w-auto text-base glow-primary">
-                                        Get Started Free
-                                        <ArrowRight className="w-5 h-5" />
-                                    </Button>
-                                </Link>
-                                <Link href="/matches">
-                                    <Button variant="outline" size="lg" className="w-full sm:w-auto text-base">
-                                        Explore Mentors
-                                    </Button>
-                                </Link>
-                            </div>
-
-                            {/* Social Proof */}
-                            <div className="flex items-center gap-6 text-sm text-muted-foreground">
-                                <div className="flex items-center gap-2">
-                                    <CheckCircle className="w-5 h-5 text-success" />
-                                    <span>SRM AP Exclusive</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <Star className="w-5 h-5 text-warning fill-warning" />
-                                    <span>4.9/5 Rating</span>
-                                </div>
-                            </div>
-                        </motion.div>
-
-                        {/* Right: Visual */}
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ duration: 0.6, delay: 0.2 }}
-                            className="relative hidden lg:block"
-                        >
-                            {/* Interactive Graph Placeholder */}
-                            <div className="relative w-full aspect-square max-w-lg mx-auto">
-                                {/* Animated Nodes */}
-                                <motion.div
-                                    animate={{
-                                        scale: [1, 1.1, 1],
-                                        rotate: [0, 5, -5, 0],
-                                    }}
-                                    transition={{ duration: 4, repeat: Infinity }}
-                                    className="absolute top-1/4 left-1/4 w-20 h-20 rounded-full bg-primary/30 flex items-center justify-center border border-primary/50"
-                                >
-                                    <Brain className="w-8 h-8 text-primary" />
-                                </motion.div>
-
-                                <motion.div
-                                    animate={{
-                                        scale: [1, 1.15, 1],
-                                        rotate: [0, -5, 5, 0],
-                                    }}
-                                    transition={{ duration: 3.5, repeat: Infinity, delay: 0.5 }}
-                                    className="absolute top-1/3 right-1/4 w-16 h-16 rounded-full bg-success/30 flex items-center justify-center border border-success/50"
-                                >
-                                    <Users className="w-6 h-6 text-success" />
-                                </motion.div>
-
-                                <motion.div
-                                    animate={{
-                                        scale: [1, 1.2, 1],
-                                    }}
-                                    transition={{ duration: 3, repeat: Infinity, delay: 1 }}
-                                    className="absolute bottom-1/3 left-1/3 w-14 h-14 rounded-full bg-warning/30 flex items-center justify-center border border-warning/50"
-                                >
-                                    <Zap className="w-5 h-5 text-warning" />
-                                </motion.div>
-
-                                {/* Connection Lines */}
-                                <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 400">
-                                    <motion.line
-                                        initial={{ pathLength: 0 }}
-                                        animate={{ pathLength: 1 }}
-                                        transition={{ duration: 2, delay: 0.5 }}
-                                        x1="140" y1="120" x2="260" y2="150"
-                                        stroke="hsl(210, 100%, 55%)"
-                                        strokeWidth="2"
-                                        strokeOpacity="0.4"
-                                        strokeDasharray="4 4"
-                                    />
-                                    <motion.line
-                                        initial={{ pathLength: 0 }}
-                                        animate={{ pathLength: 1 }}
-                                        transition={{ duration: 2, delay: 0.8 }}
-                                        x1="160" y1="130" x2="180" y2="240"
-                                        stroke="hsl(142, 76%, 55%)"
-                                        strokeWidth="2"
-                                        strokeOpacity="0.4"
-                                        strokeDasharray="4 4"
-                                    />
-                                </svg>
-
-                                {/* Stats Overlay */}
-                                <div className="absolute bottom-8 left-0 right-0 flex justify-center gap-6">
-                                    <div className="text-center px-4 py-3 rounded-lg glass">
-                                        <div className="text-2xl font-bold text-primary">
-                                            {stats?.total_users ?? '1000+'}
-                                        </div>
-                                        <div className="text-xs text-muted-foreground">Students</div>
-                                    </div>
-                                    <div className="text-center px-4 py-3 rounded-lg glass">
-                                        <div className="text-2xl font-bold text-success">
-                                            {stats?.total_skills ?? '500+'}
-                                        </div>
-                                        <div className="text-xs text-muted-foreground">Skills</div>
-                                    </div>
-                                    <div className="text-center px-4 py-3 rounded-lg glass">
-                                        <div className="text-2xl font-bold text-warning">
-                                            {stats?.total_edges ?? '5000+'}
-                                        </div>
-                                        <div className="text-xs text-muted-foreground">Connections</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </motion.div>
-                    </div>
-                </div>
-            </section>
-
-            {/* How It Works */}
-            <section className="py-20 bg-secondary/30">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                {/* Hero Content - CENTERED, MASSIVE */}
+                <motion.div
+                    style={{ opacity: heroOpacity, scale: heroScale, y: heroY }}
+                    className="relative z-10 max-w-6xl mx-auto px-4 text-center"
+                >
+                    {/* Badge */}
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }}
+                        animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5 }}
-                        className="text-center mb-16"
+                        className="inline-flex items-center gap-2 mb-8"
                     >
-                        <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-                            How SkillSync Works
-                        </h2>
-                        <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-                            Our AI analyzes your learning goals and connects you with the perfect mentor
-                            through our campus knowledge graph.
-                        </p>
+                        <Badge variant="secondary" className="px-4 py-2 text-sm">
+                            <Sparkles className="w-4 h-4 mr-2 text-warning" />
+                            Powered by GraphRAG AI
+                        </Badge>
                     </motion.div>
 
-                    <div className="grid md:grid-cols-3 gap-8">
-                        {[
-                            {
-                                step: '01',
-                                icon: Users,
-                                title: 'Share Your Skills',
-                                description: 'Tell us what you can teach and what you want to learn. Our AI builds your skill profile.',
-                                color: 'primary',
-                            },
-                            {
-                                step: '02',
-                                icon: Brain,
-                                title: 'AI Matching',
-                                description: 'Our GraphRAG algorithm finds mentors through your social connections for trusted matches.',
-                                color: 'success',
-                            },
-                            {
-                                step: '03',
-                                icon: Sparkles,
-                                title: 'Learn & Grow',
-                                description: 'Connect with your mentor, schedule sessions, and start learning. Track your progress.',
-                                color: 'warning',
-                            },
-                        ].map((item, idx) => (
-                            <motion.div
-                                key={item.step}
-                                initial={{ opacity: 0, y: 30 }}
-                                whileInView={{ opacity: 1, y: 0 }}
-                                viewport={{ once: true }}
-                                transition={{ duration: 0.5, delay: idx * 0.1 }}
-                                className="relative"
+                    {/* MASSIVE HEADLINE */}
+                    <motion.h1
+                        initial={{ opacity: 0, y: 40 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.7, delay: 0.1 }}
+                        className="text-hero-xl text-foreground mb-6"
+                    >
+                        <span className="block">Learn from</span>
+                        <span className="text-gradient-hero">Your Peers</span>
+                    </motion.h1>
+
+                    {/* Subtitle */}
+                    <motion.p
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.6, delay: 0.3 }}
+                        className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto mb-10"
+                    >
+                        AI-powered peer learning network for SRM AP.
+                        <br className="hidden sm:block" />
+                        Find mentors. Share knowledge. Grow together.
+                    </motion.p>
+
+                    {/* CTA Buttons */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5, delay: 0.4 }}
+                        className="flex flex-col sm:flex-row gap-4 justify-center"
+                    >
+                        <Link href="/signup">
+                            <Button
+                                size="lg"
+                                className="text-lg px-8 py-6 glow-primary pulse-glow"
                             >
-                                <div className="rounded-xl border border-border bg-card p-8 h-full hover:border-primary/30 transition-smooth">
-                                    <div className="text-5xl font-bold text-muted-foreground/20 mb-4">
-                                        {item.step}
-                                    </div>
-                                    <div
-                                        className={`w-12 h-12 rounded-lg flex items-center justify-center mb-4 ${item.color === 'primary'
-                                            ? 'bg-primary/20 text-primary'
-                                            : item.color === 'success'
-                                                ? 'bg-success/20 text-success'
-                                                : 'bg-warning/20 text-warning'
-                                            }`}
-                                    >
-                                        <item.icon className="w-6 h-6" />
-                                    </div>
-                                    <h3 className="text-xl font-semibold text-foreground mb-2">
-                                        {item.title}
-                                    </h3>
-                                    <p className="text-muted-foreground">{item.description}</p>
-                                </div>
-                            </motion.div>
+                                Get Started Free
+                                <ArrowRight className="w-5 h-5 ml-2" />
+                            </Button>
+                        </Link>
+                        <Link href="/matches">
+                            <Button
+                                variant="outline"
+                                size="lg"
+                                className="text-lg px-8 py-6 hover-lift"
+                            >
+                                Explore Mentors
+                            </Button>
+                        </Link>
+                    </motion.div>
+
+                    {/* Scroll Indicator */}
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 1 }}
+                        className="absolute bottom-8 left-1/2 -translate-x-1/2"
+                    >
+                        <motion.div
+                            animate={{ y: [0, 8, 0] }}
+                            transition={{ duration: 1.5, repeat: Infinity }}
+                            className="w-6 h-10 rounded-full border-2 border-muted-foreground/30 flex items-start justify-center pt-2"
+                        >
+                            <motion.div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50" />
+                        </motion.div>
+                    </motion.div>
+                </motion.div>
+            </section>
+
+            {/* ===== STATS BAR ===== */}
+            <section className="relative py-16 border-y border-border/50 glass-strong">
+                <div className="max-w-7xl mx-auto px-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+                        {stats.map((stat, idx) => (
+                            <StaggerReveal
+                                key={stat.label}
+                                delay={idx * 0.1}
+                                className="text-center"
+                            >
+                                <p className="text-4xl md:text-5xl font-bold text-foreground mb-2">
+                                    <AnimatedCounter
+                                        value={stat.value}
+                                        suffix={stat.suffix}
+                                        duration={2}
+                                        delay={0.2 + idx * 0.1}
+                                    />
+                                </p>
+                                <p className="text-muted-foreground">{stat.label}</p>
+                            </StaggerReveal>
                         ))}
                     </div>
                 </div>
             </section>
 
-            {/* CTA Section */}
-            <section className="py-20">
-                <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        whileInView={{ opacity: 1, scale: 1 }}
-                        viewport={{ once: true }}
-                        transition={{ duration: 0.5 }}
-                        className="rounded-2xl bg-gradient-to-br from-primary/20 via-background to-success/20 border border-primary/20 p-12"
-                    >
-                        <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-                            Ready to Start Learning?
+            {/* ===== HOW IT WORKS ===== */}
+            <section className="py-24 relative">
+                <div className="max-w-7xl mx-auto px-4">
+                    {/* Section Header */}
+                    <StaggerReveal className="text-center mb-16">
+                        <Badge variant="outline" className="mb-4">
+                            How It Works
+                        </Badge>
+                        <h2 className="text-display text-foreground mb-4">
+                            3 Steps to Start Learning
                         </h2>
-                        <p className="text-lg text-muted-foreground mb-8 max-w-xl mx-auto">
-                            Join hundreds of SRM AP students already using SkillSync to learn from their peers.
+                        <p className="text-muted-foreground text-lg max-w-xl mx-auto">
+                            Our AI-powered matching finds you the perfect peer mentor in seconds.
                         </p>
-                        <Link href="/signup">
-                            <Button size="lg" className="text-base glow-primary">
-                                Get Started for Free
-                                <ArrowRight className="w-5 h-5" />
-                            </Button>
-                        </Link>
-                    </motion.div>
+                    </StaggerReveal>
+
+                    {/* Steps */}
+                    <StaggerContainer className="grid md:grid-cols-3 gap-8" staggerDelay={0.15}>
+                        {steps.map((step, idx) => (
+                            <StaggerItem key={step.title}>
+                                <div className="relative group">
+                                    {/* Connection Line (hidden on mobile, visible between cards) */}
+                                    {idx < steps.length - 1 && (
+                                        <div className="hidden md:block absolute top-12 left-[60%] w-full h-0.5 bg-gradient-to-r from-primary/30 to-transparent" />
+                                    )}
+
+                                    <div className="relative bg-card border border-border rounded-2xl p-8 hover:border-primary/50 interactive-card">
+                                        {/* Step Number */}
+                                        <div className="absolute -top-4 -left-4 w-8 h-8 rounded-full bg-primary flex items-center justify-center text-sm font-bold text-primary-foreground">
+                                            {idx + 1}
+                                        </div>
+
+                                        {/* Icon */}
+                                        <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-6 group-hover:glow-primary transition-smooth">
+                                            <step.icon className="w-8 h-8 text-primary" />
+                                        </div>
+
+                                        {/* Content */}
+                                        <h3 className="text-xl font-bold text-foreground mb-2">
+                                            {step.title}
+                                        </h3>
+                                        <p className="text-muted-foreground">
+                                            {step.description}
+                                        </p>
+                                    </div>
+                                </div>
+                            </StaggerItem>
+                        ))}
+                    </StaggerContainer>
+                </div>
+            </section>
+
+            {/* ===== FEATURES SECTION ===== */}
+            <section className="py-24 relative bg-secondary/30">
+                <div className="max-w-7xl mx-auto px-4">
+                    <div className="grid lg:grid-cols-2 gap-12 items-center">
+                        {/* Left - Content */}
+                        <StaggerReveal direction="right">
+                            <Badge variant="outline" className="mb-4">
+                                <Zap className="w-3 h-3 mr-1" />
+                                Features
+                            </Badge>
+                            <h2 className="text-display text-foreground mb-6">
+                                Everything You Need to Learn & Teach
+                            </h2>
+                            <p className="text-muted-foreground text-lg mb-8">
+                                SkillSync combines AI-powered matching with a vibrant peer community
+                                to create the ultimate learning experience.
+                            </p>
+
+                            {/* Feature List */}
+                            <ul className="space-y-4 mb-8">
+                                {features.map((feature, idx) => (
+                                    <motion.li
+                                        key={feature}
+                                        initial={{ opacity: 0, x: -20 }}
+                                        whileInView={{ opacity: 1, x: 0 }}
+                                        transition={{ delay: idx * 0.1 }}
+                                        viewport={{ once: true }}
+                                        className="flex items-center gap-3"
+                                    >
+                                        <div className="w-6 h-6 rounded-full bg-success/20 flex items-center justify-center">
+                                            <Check className="w-4 h-4 text-success" />
+                                        </div>
+                                        <span className="text-foreground">{feature}</span>
+                                    </motion.li>
+                                ))}
+                            </ul>
+
+                            <Link href="/signup">
+                                <Button size="lg" className="hover-lift">
+                                    Start Learning Now
+                                    <ChevronRight className="w-5 h-5 ml-1" />
+                                </Button>
+                            </Link>
+                        </StaggerReveal>
+
+                        {/* Right - Visual */}
+                        <StaggerReveal direction="left" delay={0.2}>
+                            <div className="relative">
+                                {/* Main Card */}
+                                <div className="bg-card border border-border rounded-3xl p-8 glass-card elevated-xl">
+                                    {/* Mock Profile Match */}
+                                    <div className="flex items-center gap-4 mb-6 p-4 bg-secondary/50 rounded-2xl">
+                                        <div className="w-14 h-14 rounded-full bg-gradient-to-br from-primary to-success flex items-center justify-center text-white font-bold">
+                                            RK
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="font-semibold text-foreground">Rahul Kumar</p>
+                                            <p className="text-sm text-muted-foreground">
+                                                Teaching: Machine Learning
+                                            </p>
+                                        </div>
+                                        <Badge variant="success">94% Match</Badge>
+                                    </div>
+
+                                    <div className="flex items-center gap-4 mb-6 p-4 bg-secondary/50 rounded-2xl">
+                                        <div className="w-14 h-14 rounded-full bg-gradient-to-br from-success to-warning flex items-center justify-center text-white font-bold">
+                                            PS
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="font-semibold text-foreground">Priya Singh</p>
+                                            <p className="text-sm text-muted-foreground">
+                                                Teaching: React & Node.js
+                                            </p>
+                                        </div>
+                                        <Badge variant="success">91% Match</Badge>
+                                    </div>
+
+                                    <div className="flex items-center gap-4 p-4 bg-secondary/50 rounded-2xl">
+                                        <div className="w-14 h-14 rounded-full bg-gradient-to-br from-warning to-primary flex items-center justify-center text-white font-bold">
+                                            AP
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="font-semibold text-foreground">Amit Patel</p>
+                                            <p className="text-sm text-muted-foreground">
+                                                Teaching: Data Science
+                                            </p>
+                                        </div>
+                                        <Badge variant="success">88% Match</Badge>
+                                    </div>
+                                </div>
+
+                                {/* Floating Badge */}
+                                <motion.div
+                                    className="absolute -top-4 -right-4 bg-success rounded-xl px-4 py-2 elevated flex items-center gap-2"
+                                    animate={{ y: [0, -5, 0] }}
+                                    transition={{ duration: 2, repeat: Infinity }}
+                                >
+                                    <Star className="w-4 h-4 text-success-foreground" />
+                                    <span className="text-sm font-semibold text-success-foreground">
+                                        AI Matched
+                                    </span>
+                                </motion.div>
+                            </div>
+                        </StaggerReveal>
+                    </div>
+                </div>
+            </section>
+
+            {/* ===== CTA SECTION ===== */}
+            <section className="py-24 relative overflow-hidden">
+                {/* Background Glow */}
+                <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-[800px] h-[400px] bg-primary/10 rounded-full blur-[100px]" />
+                </div>
+
+                <div className="relative max-w-4xl mx-auto px-4 text-center">
+                    <StaggerReveal>
+                        <h2 className="text-display text-foreground mb-6">
+                            Ready to Start Your Journey?
+                        </h2>
+                        <p className="text-xl text-muted-foreground mb-10 max-w-xl mx-auto">
+                            Join hundreds of SRM AP students already learning and growing together.
+                        </p>
+                        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                            <Link href="/signup">
+                                <Button
+                                    size="lg"
+                                    className="text-lg px-10 py-6 glow-primary-intense"
+                                >
+                                    Create Free Account
+                                    <ArrowRight className="w-5 h-5 ml-2" />
+                                </Button>
+                            </Link>
+                            <Link href="/login">
+                                <Button
+                                    variant="ghost"
+                                    size="lg"
+                                    className="text-lg px-8 py-6"
+                                >
+                                    Sign In
+                                </Button>
+                            </Link>
+                        </div>
+                    </StaggerReveal>
                 </div>
             </section>
 
