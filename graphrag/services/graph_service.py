@@ -9,6 +9,8 @@ logger = logging.getLogger(__name__)
 class GraphService:
     def __init__(self):
         self.G = nx.DiGraph()
+        self.events = []
+        self.sessions = []
 
     def build_graph(self, users: List[User], skills: List[Skill]):
         """Build the knowledge graph from user and skill data"""
@@ -210,5 +212,13 @@ class GraphService:
         
         matches.sort(key=lambda x: x.match_score, reverse=True)
         return matches[:limit]
+
+    def get_events(self):
+        """Get all events (MVP: In-memory)"""
+        return self.events
+
+    def get_sessions(self):
+        """Get all sessions (MVP: In-memory)"""
+        return self.sessions
 
 graph_service = GraphService()

@@ -12,15 +12,21 @@ class Database:
 
     @classmethod
     async def connect(cls):
-        if settings.MONGODB_URI:
+        uri = settings.MONGODB_URI
+        if uri:
             try:
-                cls.client = AsyncIOMotorClient(settings.MONGODB_URI)
-                cls.db = cls.client.get_database()
-                logger.info(f"Connected to MongoDB")
+                masked_uri = uri[:15] + "..."
+                logger.info(f"Attempting connection to: {masked_uri}")
+                cls.client = AsyncIOMotorClient(uri)
+                cls.db = cls.client.get_database("skillsync")
+                # Force a check
+                await cls.db.command('ping')
+                logger.info("Connected to MongoDB Successfully!")
             except Exception as e:
                 logger.error(f"Failed to connect to MongoDB: {e}")
+                cls.db = None # Ensure it is None if failed
         else:
-            logger.warning("MONGODB_URI not found. Running in demo mode.")
+            logger.warning("MONGODB_URI not found in settings. Running in demo mode.")
 
     @classmethod
     async def close(cls):

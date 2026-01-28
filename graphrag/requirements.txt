@@ -1,8 +1,26 @@
-fastapi==0.115.0
-uvicorn[standard]==0.30.0
-networkx==3.3
-pydantic==2.9.0
-python-dotenv==1.0.1
+# SkillSync GraphRAG Backend - Dependencies
+# Generated from pip freeze on 2026-01-29
+
+# Core Framework
+fastapi==0.128.0
+uvicorn[standard]==0.40.0
+
+# Database
+motor==3.7.1
+
+# Graph Processing
+networkx==3.5
+
+# Data Validation
+pydantic==2.12.5
+
+# Environment
+python-dotenv==1.2.1
+
+# HTTP Client (for tests)
 httpx==0.27.0
-groq==0.11.0
-motor==0.11.0
+
+# Development
+ruff>=0.14.0
+pytest>=8.0.0
+pytest-asyncio>=0.23.0

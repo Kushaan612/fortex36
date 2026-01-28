@@ -13,7 +13,9 @@ from config import settings
 from database import db, fetch_graph_data
 from services.graph_service import graph_service
 from models import (
-    User, Skill, UserSkill, MatchRequest, MatchResult, GraphStats
+    User, Skill, UserSkill, MatchRequest, MatchResult, GraphStats, Event, Session,
+    UserRegisterRequest, UserUpdateRequest, SkillUpdateRequest, SessionBookRequest,
+    ConnectionRequest, ConnectionRequestStatus
 )
 
 # Configure Logging
@@ -116,12 +118,18 @@ async def find_matches(request: MatchRequest):
         skill_name=request.skill_name,
         limit=request.limit
     )
-    
-    # If no matches found because skill doesn't exist, the service returns empty list.
-    # If we want 404 behavior, we can check here.
-    # But technically empty matches is valid.
-    
     return matches
+
+
+@app.get("/events", response_model=list[Event])
+async def get_events():
+    """Get all upcoming campus events"""
+    return graph_service.get_events()
+
+@app.get("/sessions", response_model=list[Session])
+async def get_sessions():
+    """Get user's scheduled mentoring sessions"""
+    return graph_service.get_sessions()
 
 
 @app.get("/user/{user_id}/connections")
@@ -134,13 +142,326 @@ async def get_user_connections(user_id: str):
     return {"user_id": user_id, **connections}
 
 
+# ============== USER MANAGEMENT ==============
+
+@app.get("/me")
+async def get_current_user():
+    """Get current user (MVP: returns demo user)"""
+    # In production, extract from JWT/session
+    return {
+        "user_id": "u1",
+        "name": "Demo User",
+        "email": "demo@srmap.edu.in",
+        "year": 3,
+        "branch": "CSE",
+        "authenticated": False,
+        "message": "MVP mode - no auth required"
+    }
+
+@app.post("/user/register")
+async def register_user(request: UserRegisterRequest):
+    """Register a new user"""
+    import uuid
+    user_id = f"u{uuid.uuid4().hex[:8]}"
+    
+    new_user = User(
+        id=user_id,
+        name=request.name,
+        email=request.email,
+        year=request.year,
+        branch=request.branch,
+        skills=[]
+    )
+    
+    # Add to graph (in-memory for MVP)
+    graph_service.G.add_node(
+        f"user:{user_id}",
+        type="user",
+        name=new_user.name,
+        year=new_user.year,
+        branch=new_user.branch
+    )
+    
+    # Store in users list for graph rebuilding
+    graph_service.users = getattr(graph_service, 'users', [])
+    graph_service.users.append(new_user)
+    
+    return {
+        "message": "User registered successfully",
+        "user_id": user_id,
+        "user": new_user
+    }
+
+@app.get("/user/{user_id}")
+async def get_user_profile(user_id: str):
+    """Get user profile by ID"""
+    user_node = f"user:{user_id}"
+    
+    if user_node not in graph_service.G.nodes():
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    node_data = graph_service.G.nodes[user_node]
+    connections = graph_service.get_user_connections(user_id)
+    
+    return {
+        "user_id": user_id,
+        "name": node_data.get("name", "Unknown"),
+        "year": node_data.get("year", 1),
+        "branch": node_data.get("branch", "Unknown"),
+        **connections
+    }
+
+@app.put("/user/{user_id}")
+async def update_user_profile(user_id: str, updates: UserUpdateRequest):
+    """Update user profile"""
+    user_node = f"user:{user_id}"
+    
+    if user_node not in graph_service.G.nodes():
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Update graph node attributes
+    if updates.name:
+        graph_service.G.nodes[user_node]["name"] = updates.name
+    if updates.year:
+        graph_service.G.nodes[user_node]["year"] = updates.year
+    if updates.branch:
+        graph_service.G.nodes[user_node]["branch"] = updates.branch
+    
+    return {"message": "Profile updated", "user_id": user_id}
+
+@app.post("/user/{user_id}/skills")
+async def update_user_skills(user_id: str, skill: SkillUpdateRequest):
+    """Add or update a user's skill"""
+    from constants import RelationType
+    
+    user_node = f"user:{user_id}"
+    skill_node = f"skill:{skill.skill_id}"
+    
+    if user_node not in graph_service.G.nodes():
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Add skill node if doesn't exist
+    if skill_node not in graph_service.G.nodes():
+        graph_service.G.add_node(skill_node, type="skill", name=skill.skill_name, category="Custom")
+    
+    # Add edges based on teaching/learning
+    if skill.is_teaching:
+        graph_service.G.add_edge(user_node, skill_node, relation=RelationType.CAN_TEACH, proficiency=skill.proficiency)
+    if skill.is_learning:
+        graph_service.G.add_edge(user_node, skill_node, relation=RelationType.WANTS_TO_LEARN)
+    
+    return {"message": "Skill updated", "user_id": user_id, "skill": skill.skill_name}
+
+
+# ============== EVENT MANAGEMENT ==============
+
+@app.get("/events/{event_id}")
+async def get_event(event_id: str):
+    """Get single event details"""
+    for event in graph_service.events:
+        if event.id == event_id:
+            return event
+    raise HTTPException(status_code=404, detail="Event not found")
+
+@app.post("/events")
+async def create_event(event: Event):
+    """Create a new event"""
+    # Check for duplicate ID
+    for existing in graph_service.events:
+        if existing.id == event.id:
+            raise HTTPException(status_code=409, detail="Event ID already exists")
+    
+    graph_service.events.append(event)
+    return {"message": "Event created", "event_id": event.id}
+
+@app.post("/events/{event_id}/register")
+async def register_for_event(event_id: str, user_id: str):
+    """Register a user for an event"""
+    for event in graph_service.events:
+        if event.id == event_id:
+            if event.participants >= event.max_participants:
+                raise HTTPException(status_code=400, detail="Event is full")
+            event.participants += 1
+            return {"message": "Registered successfully", "event_id": event_id, "user_id": user_id}
+    raise HTTPException(status_code=404, detail="Event not found")
+
+
+# ============== SESSION MANAGEMENT ==============
+
+@app.post("/sessions/book")
+async def book_session(request: SessionBookRequest):
+    """Book a mentoring session"""
+    import uuid
+    session_id = f"s{uuid.uuid4().hex[:8]}"
+    
+    # Get mentor name from graph
+    mentor_node = f"user:{request.mentor_id}"
+    if mentor_node not in graph_service.G.nodes():
+        raise HTTPException(status_code=404, detail="Mentor not found")
+    
+    mentor_name = graph_service.G.nodes[mentor_node].get("name", "Unknown Mentor")
+    
+    new_session = Session(
+        id=session_id,
+        mentor_name=mentor_name,
+        topic=request.topic,
+        date=request.date,
+        time=request.time,
+        status="Scheduled",
+        duration=request.duration
+    )
+    
+    graph_service.sessions.append(new_session)
+    return {"message": "Session booked", "session_id": session_id, "session": new_session}
+
+@app.put("/sessions/{session_id}")
+async def update_session(session_id: str, status: str):
+    """Update session status"""
+    for session in graph_service.sessions:
+        if session.id == session_id:
+            session.status = status
+            return {"message": "Session updated", "session_id": session_id, "new_status": status}
+    raise HTTPException(status_code=404, detail="Session not found")
+
+@app.delete("/sessions/{session_id}")
+async def cancel_session(session_id: str):
+    """Cancel/delete a session"""
+    for i, session in enumerate(graph_service.sessions):
+        if session.id == session_id:
+            graph_service.sessions.pop(i)
+            return {"message": "Session cancelled", "session_id": session_id}
+    raise HTTPException(status_code=404, detail="Session not found")
+
+
+# ============== CONNECTION REQUESTS ==============
+
+# In-memory store for connection requests (MVP)
+connection_requests: list = []
+
+@app.post("/match/connect")
+async def send_connection_request(request: ConnectionRequest):
+    """Send a connection/mentorship request"""
+    import uuid
+    from datetime import datetime
+    
+    # Validate users exist
+    from_node = f"user:{request.from_user_id}"
+    to_node = f"user:{request.to_user_id}"
+    
+    if from_node not in graph_service.G.nodes():
+        raise HTTPException(status_code=404, detail="Sender user not found")
+    if to_node not in graph_service.G.nodes():
+        raise HTTPException(status_code=404, detail="Recipient user not found")
+    
+    from_name = graph_service.G.nodes[from_node].get("name", "Unknown")
+    
+    new_request = ConnectionRequestStatus(
+        id=f"cr{uuid.uuid4().hex[:8]}",
+        from_user_id=request.from_user_id,
+        from_user_name=from_name,
+        to_user_id=request.to_user_id,
+        skill_name=request.skill_name,
+        message=request.message,
+        status="pending",
+        created_at=datetime.now().isoformat()
+    )
+    
+    connection_requests.append(new_request)
+    return {"message": "Connection request sent", "request_id": new_request.id}
+
+@app.get("/match/requests/{user_id}")
+async def get_connection_requests(user_id: str):
+    """Get pending connection requests for a user"""
+    incoming = [r for r in connection_requests if r.to_user_id == user_id]
+    outgoing = [r for r in connection_requests if r.from_user_id == user_id]
+    
+    return {
+        "user_id": user_id,
+        "incoming": incoming,
+        "outgoing": outgoing
+    }
+
+
+# ============== UTILITY / ANALYTICS ==============
+
+@app.get("/skills/trending")
+async def get_trending_skills():
+    """Get trending skills (most learners)"""
+    skill_demand = {}
+    
+    for node in graph_service.G.nodes():
+        if str(node).startswith("skill:"):
+            skill_name = graph_service.G.nodes[node].get("name", "Unknown")
+            # Count incoming WANTS_TO_LEARN edges
+            learners = sum(1 for pred in graph_service.G.predecessors(node)
+                          if graph_service.G.edges.get((pred, node), {}).get("relation") == "WANTS_TO_LEARN")
+            skill_demand[skill_name] = learners
+    
+    # Sort by demand
+    trending = sorted(skill_demand.items(), key=lambda x: x[1], reverse=True)[:10]
+    
+    return {
+        "trending_skills": [{"skill": name, "learners": count} for name, count in trending]
+    }
+
+@app.get("/skills/categories")
+async def get_skill_categories():
+    """Get all skill categories"""
+    categories = {}
+    
+    for node in graph_service.G.nodes():
+        if str(node).startswith("skill:"):
+            category = graph_service.G.nodes[node].get("category", "General")
+            skill_name = graph_service.G.nodes[node].get("name", "Unknown")
+            
+            if category not in categories:
+                categories[category] = []
+            categories[category].append(skill_name)
+    
+    return {"categories": categories}
+
+@app.get("/leaderboard")
+async def get_leaderboard():
+    """Get top mentors by teaching proficiency"""
+    mentor_scores = {}
+    
+    for node in graph_service.G.nodes():
+        if str(node).startswith("user:"):
+            user_id = str(node).split(":")[1]
+            user_name = graph_service.G.nodes[node].get("name", "Unknown")
+            
+            # Sum proficiency of all skills they teach
+            total_proficiency = 0
+            skills_teaching = 0
+            
+            for neighbor in graph_service.G.neighbors(node):
+                edge = graph_service.G.edges.get((node, neighbor), {})
+                if edge.get("relation") == "CAN_TEACH":
+                    total_proficiency += edge.get("proficiency", 0)
+                    skills_teaching += 1
+            
+            if skills_teaching > 0:
+                mentor_scores[user_id] = {
+                    "name": user_name,
+                    "total_proficiency": total_proficiency,
+                    "skills_teaching": skills_teaching,
+                    "score": total_proficiency * skills_teaching
+                }
+    
+    # Sort by score
+    sorted_mentors = sorted(mentor_scores.items(), key=lambda x: x[1]["score"], reverse=True)[:10]
+    
+    return {
+        "leaderboard": [
+            {"rank": i+1, "user_id": uid, **data}
+            for i, (uid, data) in enumerate(sorted_mentors)
+        ]
+    }
+
+
 @app.post("/demo/seed")
 async def seed_demo_data():
     """Seed the graph with demo data for testing"""
-    
-    # Demo data definition moved inside to keep main clean, or we could move to a separate seed file
-    # For now, inline is fine or copy from old main.py
-    # Re-using the same data structure as before
     
     demo_skills = [
         Skill(id="1", name="Python", category="Programming"),
@@ -198,6 +519,41 @@ async def seed_demo_data():
         ),
     ]
     
+    # Seed Events (SRM AP Context)
+    graph_service.events = [
+        Event(
+            id="e1", title="SRM Hackathon 2025", description="24-hour coding challenge for sustainable tech.",
+            time="Feb 15, 09:00 AM", location="Admin Block, 4th Floor", type="Hackathon",
+            participants=120, max_participants=200, host="Next Tech Lab", tags=["Coding", "Innovation"]
+        ),
+        Event(
+            id="e2", title="React.js Workshop", description="Zero to Hero in React hooks and patterns.",
+            time="Feb 10, 02:00 PM", location="AL C-201", type="Workshop",
+            participants=45, max_participants=60, host="Priya Singh", tags=["Web Dev", "Frontend"]
+        ),
+        Event(
+            id="e3", title="AI/ML Study Group", description="Discussing Transformer models and BERT.",
+            time="Every Sat, 06:00 PM", location="Online (Discord)", type="Study Group",
+            participants=15, max_participants=50, host="Rahul Kumar", tags=["AI", "Research"]
+        )
+    ]
+
+    # Seed Sessions
+    graph_service.sessions = [
+        Session(
+            id="s1", mentor_name="Rahul Kumar", topic="Intro to Machine Learning",
+            date="Today", time="04:00 PM", status="Scheduled", duration="1 hr"
+        ),
+        Session(
+            id="s2", mentor_name="Priya Singh", topic="React State Management",
+            date="Tomorrow", time="10:00 AM", status="Scheduled", duration="45 min"
+        ),
+        Session(
+            id="s3", mentor_name="Vikram Reddy", topic="DSA Graph Algorithms",
+            date="Feb 12", time="06:00 PM", status="Pending", duration="1.5 hr"
+        )
+    ]
+
     graph_service.build_graph(demo_users, demo_skills)
     
     return {
