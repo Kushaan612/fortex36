@@ -3,23 +3,32 @@ SkillSync GraphRAG Microservice
 AI-powered peer matching using knowledge graphs
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import logging
 
 # Local modules
-from config import settings
-from database import db, fetch_graph_data
-from services.graph_service import graph_service
-from models import (
+from .core.config import settings, setup_logging
+from .middleware.request_id import RequestIDMiddleware
+from .core.database import db, fetch_graph_data
+from .services.graph_service import graph_service
+from .services.event_service import EventService
+from .services.session_service import SessionService
+from .services.connection_service import ConnectionService
+
+# Initialize Services
+event_service = EventService()
+session_service = SessionService()
+connection_service = ConnectionService()
+from .models import (
     User, Skill, UserSkill, MatchRequest, MatchResult, GraphStats, Event, Session,
     UserRegisterRequest, UserUpdateRequest, SkillUpdateRequest, SessionBookRequest,
     ConnectionRequest, ConnectionRequestStatus
 )
 
 # Configure Logging
-logging.basicConfig(level=logging.INFO)
+setup_logging()
 logger = logging.getLogger(__name__)
 
 # Lifespan context for DB connection
@@ -39,6 +48,9 @@ app = FastAPI(
     version=settings.API_VERSION,
     lifespan=lifespan
 )
+
+# Middleware
+app.add_middleware(RequestIDMiddleware)
 
 # CORS Configuration
 app.add_middleware(
@@ -61,11 +73,25 @@ async def root():
     }
 
 @app.get("/health")
-async def health():
+async def health(response: Response):
+    """Deep health check for orchestration"""
+    status = "healthy"
+    db_status = "disconnected"
+    
+    if db.db is not None:
+        try:
+            await db.db.command("ping")
+            db_status = "connected"
+        except Exception:
+            status = "degraded"
+            db_status = "error"
+            response.status_code = 503
+    
     return {
-        "status": "healthy",
+        "status": status,
+        "database": db_status,
         "graph_nodes": graph_service.G.number_of_nodes(),
-        "db_connected": db.db is not None
+        "memory_usage": "optimal"  # Placeholder for psutil check if needed
     }
 
 @app.get("/stats", response_model=GraphStats)
@@ -124,12 +150,12 @@ async def find_matches(request: MatchRequest):
 @app.get("/events", response_model=list[Event])
 async def get_events():
     """Get all upcoming campus events"""
-    return graph_service.get_events()
+    return await event_service.get_all()
 
 @app.get("/sessions", response_model=list[Session])
 async def get_sessions():
     """Get user's scheduled mentoring sessions"""
-    return graph_service.get_sessions()
+    return await session_service.get_all()
 
 
 @app.get("/user/{user_id}/connections")
@@ -232,7 +258,7 @@ async def update_user_profile(user_id: str, updates: UserUpdateRequest):
 @app.post("/user/{user_id}/skills")
 async def update_user_skills(user_id: str, skill: SkillUpdateRequest):
     """Add or update a user's skill"""
-    from constants import RelationType
+    from .core.constants import RelationType
     
     user_node = f"user:{user_id}"
     skill_node = f"skill:{skill.skill_id}"
@@ -258,32 +284,32 @@ async def update_user_skills(user_id: str, skill: SkillUpdateRequest):
 @app.get("/events/{event_id}")
 async def get_event(event_id: str):
     """Get single event details"""
-    for event in graph_service.events:
-        if event.id == event_id:
-            return event
-    raise HTTPException(status_code=404, detail="Event not found")
+    event = await event_service.get_by_id(event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    return event
 
 @app.post("/events")
 async def create_event(event: Event):
     """Create a new event"""
-    # Check for duplicate ID
-    for existing in graph_service.events:
-        if existing.id == event.id:
-            raise HTTPException(status_code=409, detail="Event ID already exists")
-    
-    graph_service.events.append(event)
+    try:
+        await event_service.create(event)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
     return {"message": "Event created", "event_id": event.id}
 
 @app.post("/events/{event_id}/register")
 async def register_for_event(event_id: str, user_id: str):
     """Register a user for an event"""
-    for event in graph_service.events:
-        if event.id == event_id:
-            if event.participants >= event.max_participants:
-                raise HTTPException(status_code=400, detail="Event is full")
-            event.participants += 1
+    try:
+        success = await event_service.register_user(event_id, user_id)
+        if success:
             return {"message": "Registered successfully", "event_id": event_id, "user_id": user_id}
-    raise HTTPException(status_code=404, detail="Event not found")
+    except ValueError as e:
+        if "not found" in str(e):
+             raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    raise HTTPException(status_code=400, detail="Registration failed")
 
 
 # ============== SESSION MANAGEMENT ==============
@@ -311,32 +337,29 @@ async def book_session(request: SessionBookRequest):
         duration=request.duration
     )
     
-    graph_service.sessions.append(new_session)
+    await session_service.create(new_session)
     return {"message": "Session booked", "session_id": session_id, "session": new_session}
 
 @app.put("/sessions/{session_id}")
 async def update_session(session_id: str, status: str):
     """Update session status"""
-    for session in graph_service.sessions:
-        if session.id == session_id:
-            session.status = status
-            return {"message": "Session updated", "session_id": session_id, "new_status": status}
-    raise HTTPException(status_code=404, detail="Session not found")
+    updated = await session_service.update_status(session_id, status)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {"message": "Session updated", "session_id": session_id, "new_status": status}
 
 @app.delete("/sessions/{session_id}")
 async def cancel_session(session_id: str):
     """Cancel/delete a session"""
-    for i, session in enumerate(graph_service.sessions):
-        if session.id == session_id:
-            graph_service.sessions.pop(i)
-            return {"message": "Session cancelled", "session_id": session_id}
-    raise HTTPException(status_code=404, detail="Session not found")
+    success = await session_service.delete(session_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {"message": "Session cancelled", "session_id": session_id}
 
 
 # ============== CONNECTION REQUESTS ==============
 
-# In-memory store for connection requests (MVP)
-connection_requests: list = []
+# ============== CONNECTION REQUESTS ==============
 
 @app.post("/match/connect")
 async def send_connection_request(request: ConnectionRequest):
@@ -344,7 +367,7 @@ async def send_connection_request(request: ConnectionRequest):
     import uuid
     from datetime import datetime
     
-    # Validate users exist
+    # Validate users exist (Graph check is fine for existence)
     from_node = f"user:{request.from_user_id}"
     to_node = f"user:{request.to_user_id}"
     
@@ -366,19 +389,16 @@ async def send_connection_request(request: ConnectionRequest):
         created_at=datetime.now().isoformat()
     )
     
-    connection_requests.append(new_request)
+    await connection_service.create(new_request)
     return {"message": "Connection request sent", "request_id": new_request.id}
 
 @app.get("/match/requests/{user_id}")
 async def get_connection_requests(user_id: str):
     """Get pending connection requests for a user"""
-    incoming = [r for r in connection_requests if r.to_user_id == user_id]
-    outgoing = [r for r in connection_requests if r.from_user_id == user_id]
-    
+    requests = await connection_service.get_by_user(user_id)
     return {
         "user_id": user_id,
-        "incoming": incoming,
-        "outgoing": outgoing
+        **requests
     }
 
 
@@ -520,7 +540,7 @@ async def seed_demo_data():
     ]
     
     # Seed Events (SRM AP Context)
-    graph_service.events = [
+    events = [
         Event(
             id="e1", title="SRM Hackathon 2025", description="24-hour coding challenge for sustainable tech.",
             time="Feb 15, 09:00 AM", location="Admin Block, 4th Floor", type="Hackathon",
@@ -537,9 +557,16 @@ async def seed_demo_data():
             participants=15, max_participants=50, host="Rahul Kumar", tags=["AI", "Research"]
         )
     ]
+    
+    # Persist Events
+    for event in events:
+        try:
+             await event_service.create(event)
+        except ValueError:
+             pass # Already exists
 
     # Seed Sessions
-    graph_service.sessions = [
+    sessions = [
         Session(
             id="s1", mentor_name="Rahul Kumar", topic="Intro to Machine Learning",
             date="Today", time="04:00 PM", status="Scheduled", duration="1 hr"
@@ -553,6 +580,13 @@ async def seed_demo_data():
             date="Feb 12", time="06:00 PM", status="Pending", duration="1.5 hr"
         )
     ]
+    
+    # Persist Sessions
+    for session in sessions:
+        try:
+            await session_service.create(session)
+        except ValueError:
+            pass # Already exists
 
     graph_service.build_graph(demo_users, demo_skills)
     

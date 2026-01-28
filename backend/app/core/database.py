@@ -1,6 +1,6 @@
 from motor.motor_asyncio import AsyncIOMotorClient
-from config import settings
-from models import User, Skill, UserSkill
+from .config import settings
+from ..models import User, Skill, UserSkill
 from typing import List, Tuple
 import logging
 

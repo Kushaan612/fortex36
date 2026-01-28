@@ -13,6 +13,8 @@ networkx==3.5
 
 # Data Validation
 pydantic==2.12.5
+pydantic-settings>=2.0.0
+email-validator>=2.1.0
 
 # Environment
 python-dotenv==1.2.1

@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional
 
 class Skill(BaseModel):
@@ -67,10 +67,10 @@ class Session(BaseModel):
 
 # Request Models for New Endpoints
 class UserRegisterRequest(BaseModel):
-    name: str
-    email: str
-    year: int
-    branch: str
+    name: str = Field(..., min_length=2, max_length=50)
+    email: EmailStr
+    year: int = Field(..., ge=1, le=5)
+    branch: str = Field(..., min_length=2, max_length=10)
 
 class UserUpdateRequest(BaseModel):
     name: Optional[str] = None
@@ -81,7 +81,7 @@ class UserUpdateRequest(BaseModel):
 class SkillUpdateRequest(BaseModel):
     skill_id: str
     skill_name: str
-    proficiency: int
+    proficiency: int = Field(..., ge=1, le=5)
     is_teaching: bool = False
     is_learning: bool = False
 

@@ -1,6 +1,5 @@
-from fastapi.testclient import TestClient
-from main import app
-from services.graph_service import graph_service
+from app.main import app, event_service, session_service, connection_service
+from app.services.graph_service import graph_service
 import pytest
 
 client = TestClient(app)
@@ -8,10 +7,11 @@ client = TestClient(app)
 class TestNewEndpoints:
     
     def setup_method(self):
-        # Reset graph data before each test
+        # Reset data before each test
         graph_service.G.clear()
-        graph_service.events = []
-        graph_service.sessions = []
+        event_service.events = []
+        session_service.sessions = []
+        connection_service.requests = []
         # Re-seed for consistency
         client.post("/demo/seed")
 
@@ -84,6 +84,23 @@ class TestNewEndpoints:
         res = client.put(f"/sessions/{session_id}", params={"status": "Completed"})
         assert res.status_code == 200
         assert res.json()["new_status"] == "Completed"
+
+    def test_connection_flow(self):
+        # 1. Send Request (u2 -> u1)
+        payload = {
+            "from_user_id": "u2",
+            "to_user_id": "u1",
+            "skill_name": "Python"
+        }
+        res = client.post("/match/connect", json=payload)
+        assert res.status_code == 200
+        
+        # 2. Check Requests for u1 (Incoming)
+        res = client.get("/match/requests/u1")
+        assert res.status_code == 200
+        data = res.json()
+        assert len(data["incoming"]) > 0
+        assert data["incoming"][0]["from_user_id"] == "u2"
 
     def test_analytics_endpoints(self):
         res = client.get("/skills/trending")

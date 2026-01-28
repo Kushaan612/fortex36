@@ -9,8 +9,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest
 from fastapi.testclient import TestClient
-from main import app
-from models import User, Skill, UserSkill
+from app.main import app
+from app.models import User, Skill, UserSkill
 
 client = TestClient(app)
 
